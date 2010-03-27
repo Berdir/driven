@@ -1,0 +1,13 @@
+; $Id$
+
+name = Driven Node Edition Policy
+description = Selectively prevents driven properties from being available on node edition.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = driven_props
+
+; @d7
+files[] = driven_ned.module

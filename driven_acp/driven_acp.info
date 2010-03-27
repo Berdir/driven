@@ -1,0 +1,13 @@
+; $Id$
+
+name = Driven Access Control Policies
+description = Exposes an API to apply grained access control policies.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = driven
+
+; @d7
+files[] = driven_acp.module

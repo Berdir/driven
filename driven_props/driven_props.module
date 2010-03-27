@@ -1,0 +1,205 @@
+<?php
+// $Id$
+
+function driven_props_get_type_enabled($driver_mod, $node_type) {
+  // this is the only flag under $section='driven_props'
+  // which might need to be directly accessed
+  // (i.e. without calling a wrapper functionality)
+  $section = 'driven_props';
+  $name = 'enabled';
+  $default = FALSE;
+  $settings = driven_props_get_type_settings($driver_mod, $node_type, $section);
+  return (isset($settings[$name]) ? $settings[$name] : $default);
+}
+
+function driven_props_get_type_setting($driver_mod, $node_type, $name, $default = NULL) {
+  // driver_mod will be interested on its settings under $section='settings'
+  $settings = driven_props_get_type_settings($driver_mod, $node_type);
+  return (isset($settings[$name]) ? $settings[$name] : $default);
+}
+
+function driven_props_get_type_settings($driver_mod, $node_type, $section = 'settings') {
+  // until now possible sections are: 'settings' & 'driven_props'
+  $varname = $driver_mod . ':type:' . $node_type . ':' . $section;
+  return variable_get($varname, array());
+}
+
+function driven_props_get_policies($driver_mod, $node_type, $refresh = FALSE) {
+  $policies = array();
+  
+  $section = 'driven_props';
+  $settings = driven_props_get_type_settings($driver_mod, $node_type, $section);
+  // drop the only key which isn't a realm
+  unset($settings['enabled']);
+  
+  $driven_props = driven_props_get_properties($driver_mod, $node_type, $refresh);
+  foreach ($driven_props as $property_id => $prop) {
+    $realm = $prop['realm'];
+    $target = $prop['target'];
+    $prop_settings = $settings[$realm][$target];
+    if (!$prop_settings['enabled'] || !isset($prop_settings['behaviors'])) {
+      continue;
+    }
+    foreach ($prop_settings['behaviors'] as $behavior => $policy) {
+      $policies[$behavior][$property_id] = $policy; 
+    }
+  }
+  
+  return $policies;
+}
+
+function driven_props_get_properties($driver_mod, $node_type, $refresh = FALSE) {
+  // @d6 static cache
+  static $properties = array();
+  
+  if ($refresh) {
+    unset($properties[$driver_mod]);
+  }
+  
+  // a refresh request might pass a first NULL argument
+  // also content type creation will deliver an empty $node_type
+  if (empty($node_type)) {
+    return array();
+  }
+  
+  if (!isset($properties[$driver_mod][$node_type])) {
+    // could be !isset($settings['enabled']) || !$settings['enabled']
+    // but this is much clear 
+    if (!driven_props_get_type_enabled($driver_mod, $node_type)) {
+      return array();
+    }
+    $section = 'driven_props';
+    $settings = driven_props_get_type_settings($driver_mod, $node_type, $section);
+    // drop the only key which isn't a realm
+    unset($settings['enabled']);
+    
+    $available_props = driven_properties_available($node_type, $refresh);
+    // within the same request unsupported properties are not expected to change
+    // (e.g. a CCK widget won't change in the middle of a request involving driven props processing)
+    $unsupported = array();
+    $hook = 'unsupported_driven_props';
+    if (module_hook($driver_mod, $hook)) {
+      $unsupported = module_invoke($driver_mod, $hook, $available_props);
+    }
+    $driven_props = array();
+    foreach ($settings as $realm => $targets) {
+      foreach ($targets as $target => $prop_settings) {
+        if (!$prop_settings['enabled']) {
+          continue;
+        }
+        $property_id = $realm . ':' . $target;
+        if (!isset($available_props[$property_id])) {
+          // property gone (e.g. disabling modules)
+          continue;
+        }
+        if (isset($unsupported[$property_id])) {
+          // property became unsupported (e.g. changed CCK widget)
+          continue;
+        }
+        // copy
+        $driven_props[$property_id] = $available_props[$property_id];
+      }
+    }
+    
+    $properties[$driver_mod][$node_type] = $driven_props;
+  }
+  return $properties[$driver_mod][$node_type];
+}
+
+function driven_props_invoke_type_settings() {
+  $settings = array();
+  $hook = 'driven_props_type_settings';
+  // sort by module name
+  // don't let modules' weigth interfere
+  // with the order of menu's local tasks
+  // (see hook_menu)
+  foreach (module_implements($hook, TRUE) as $module) {
+    $settings[$module] = module_invoke($module, $hook); 
+  }
+  return $settings;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function driven_props_menu() {
+  $menu = array();
+
+  $type_settings = driven_props_invoke_type_settings();
+  if (!empty($type_settings)) {
+    $weight = 10; // CCK uses 1 & 2, lets go last
+    // @d6
+    $types = node_get_types();
+    foreach ($type_settings as $driver_mod => $settings) {
+      foreach ($types as $key => $type) {
+        // mimic CCK behavior,
+        // they check node_hook in content types page,
+        // but not in hook_menu
+        
+        $uri = str_replace('_', '-', $driver_mod);
+        $node_type = $type->type;
+        $type_url_str = str_replace('_', '-', $node_type);
+        // @d6
+        $base_uri = 'admin/content/node-type/'. $type_url_str .'/driven-props';
+        // careful, base_uri without trailing slash to be used as default task
+        $full_uri = $base_uri . '/' . $uri;
+        $task_title = $settings['menu_title'];
+        $default_task = !isset($menu[$base_uri]);
+        
+        $menu[$default_task ? $base_uri : $full_uri] = array(
+          'title' => ($default_task && count($type_settings) > 1) ? 'Driven properties' : $task_title,
+          'page callback' => 'drupal_get_form',
+          'page arguments' => array('driven_props_overview_form', $driver_mod, $node_type),
+          'access arguments' => array('administer content types'),
+          'file' => 'driven_props.admin.inc',
+          'type' => MENU_LOCAL_TASK,
+          'weight' => $weight++,
+        );
+        if ($default_task) {
+          $menu[$full_uri] = array(
+            'title' => $task_title,
+            'type' => MENU_DEFAULT_LOCAL_TASK,
+            'weight' => -10,
+          );
+        }
+      }
+    }
+  }
+  
+  return $menu;
+}
+
+/**
+ * Implements hook_menu_alter(). 
+ */
+function driven_props_menu_alter(&$menu) {
+  // @d6
+  // if CCK is installed we'll use its content_types_overview_alter instead
+  if (!module_exists('content')) {
+    // @d6
+    $menu_types = &$menu['admin/content/types'];
+    
+    $menu_types['page callback'] = 'driven_props_types_overview';
+    $menu_types['file'] = 'driven_props.admin.inc';
+    $menu_types['file path'] = drupal_get_path('module', 'driven_props');
+  }
+}
+
+// helper function for driver mods
+function driven_props_delete_settings($driver_mod, $node_type) {
+  $varnames = array(
+    $driver_mod . ':type:' . $node_type . ':driven_props',
+    $driver_mod . ':type:' . $node_type . ':settings',
+  );
+  foreach ($varnames as $varname) {
+    variable_del($varname);
+  }
+}
+
+/**
+ * Implements hook_content_types_overview_alter().
+ */
+function driven_props_content_types_overview_alter(&$header, &$rows) {
+  module_load_include('inc', 'driven_props', 'driven_props.admin');
+  _driven_props_types_overview_alter($header, $rows);
+}

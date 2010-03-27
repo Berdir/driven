@@ -1,0 +1,14 @@
+; $Id$
+
+name = Driven taxonomy properties
+description = Driven properties for node's taxonomy.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = taxonomy
+
+; @d7
+files[] = driven_taxo.module
+files[] = driven_taxo.diff.inc

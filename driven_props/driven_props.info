@@ -1,0 +1,14 @@
+; $Id$
+
+name = Driven property manager
+description = Helper API to manage driven properties.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = driven
+
+; @d7
+files[] = driven_props.module
+files[] = driven_props.admin.inc

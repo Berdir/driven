@@ -1,0 +1,14 @@
+; $Id$
+
+name = Driven path properties
+description = Driven properties for node's URL alias (example module).
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = path
+
+; @d7
+files[] = driven_path.module
+files[] = driven_path.diff.inc

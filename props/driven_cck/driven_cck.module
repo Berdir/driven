@@ -1,0 +1,93 @@
+<?php
+// $Id$
+
+if (module_exists('driven_diff')) {
+  // don't include code that depends on a disabled module
+  module_load_include('inc', 'driven_cck', 'driven_cck.diff');
+}
+
+/**
+ * Implements hook_driven_properties().
+ */
+function driven_cck_driven_properties($node_type) {
+  $available_props = array();
+  
+  // according to content_field_overview_form:
+  // When displaying the form, make sure the list of fields is up-to-date.
+  content_clear_type_cache();
+  
+  // Gather type information.
+  $cck_type = content_types($node_type);
+  $fields = $cck_type['fields'];
+  //$field_types = _content_field_types();
+  
+  $groups = array();
+  if (module_exists('fieldgroup')) {
+    $groups = fieldgroup_groups($cck_type['type']);
+  }
+  
+  $grouped_fields = array();
+  // first lookup the groups to discriminate nested fields
+  foreach ($groups as $group_name => $group) {
+    foreach ($group['fields'] as $field_name => $field) {
+      $grouped_fields[$field_name] = $group;
+    }
+  }
+  
+  // lookup fields
+  foreach ($fields as $field_name => $field) {
+    $meta = array();
+    if (isset($grouped_fields[$field_name])) {
+      $group = $grouped_fields[$field_name];
+      $meta += array(
+        'group_name' => $group['group_name'],
+        'group_type' => $group['group_type'],
+      );
+      // translate the same as CCK does
+      $group_title_prefix = t($group['label']) . ' » '; 
+    }
+    else {
+      $meta['group_name'] = NULL;
+      $group_title_prefix = '';
+    }
+    $meta += array(
+      'field_name' => $field['field_name'],
+      'field_type' => $field['type'],
+      'field_module' => $field['module'],
+      'field_multiple' => $field['multiple'],
+    );
+    $meta += array(
+      'widget_type' => $field['widget']['type'],
+      'widget_module' => $field['widget']['module'],
+    );
+    
+    // some field types might have the #title beneath the property path level
+    // (e.g. content_taxonomy will have it at $element['tids'])
+    // translate the same as CCK does
+    $label = t($field['widget']['label']);
+    $available_props['cck:' . $field_name] = array(
+      'label' => $label,
+      'meta' => $meta,
+      'target_title' => $group_title_prefix . $label,
+    );
+  }
+  
+  foreach ($available_props as $property_id => &$prop) {
+    $prop['realm_title'] = t('CCK');
+  }
+  return $available_props;
+}
+
+function driven_cck_get_field($node_type, $field_name) {
+  // Gather type information.
+  $cck_type = content_types($node_type); // at least returns a virgen field definition
+  $fields = $cck_type['fields']; // if virgen it would be an empty array
+  if (!empty($fields[$field_name])) {
+    return $fields[$field_name];
+  }
+  
+  // second argument will be %id
+  $msg = 'Field %id couldn\'t be fetched';
+  driven_diff_warn_property_gone($node_type, $field_name, $msg);
+  return FALSE;
+}

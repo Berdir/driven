@@ -124,6 +124,7 @@ function driven_inspect_diff_nodes($old_node, $new_node, $driven_props) {
   // Access Control Policies were NOT applied in driven_inspect_build_node_form
   
   $changes = array();
+  $bundled_equal = array();
   // both forms must be of the same content type
   // but one of them might have children the other one doesn't have
   // therefore it is required to navigate synchronized,
@@ -137,7 +138,7 @@ function driven_inspect_diff_nodes($old_node, $new_node, $driven_props) {
     $realm = $prop['realm'];
     $target = $prop['target'];
     $property_id = $realm . ':' . $target;
-    $meta = $prop['meta']; // until now only needed for wrapper_joint & multigroup
+    $meta = $prop['meta']; // until now only needed for bundle joint & multigroup
     
     // @per-module-discrimination: support content_multigroup
     // test for group_name first, since it will be at least NULL, while group_type index might not exists
@@ -146,31 +147,78 @@ function driven_inspect_diff_nodes($old_node, $new_node, $driven_props) {
     // $group_name/type, $field_name/type/module/multiple, $widget_type/module
     // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
     $multigroup = ($realm == 'cck' && $meta['group_name'] && $meta['group_type'] == 'multigroup');
+    // @per-module-discrimination: support workflow
+    // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+    // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+    $bundle = $meta['bundle'];
+    $bundled = !empty($bundle);
     
     $path_parts = explode(':', $property_path);
-    $old_parent = $old_node_form;
-    $new_parent = $new_node_form;
+    $old_elem = $old_node_form;
+    $new_elem = $new_node_form;
     $ancestor_title = '?';
     foreach ($path_parts as $key) {
-      $old_parent = empty($old_parent[$key]) ? array() : $old_parent[$key];
-      $new_parent = empty($new_parent[$key]) ? array() : $new_parent[$key];
+      $old_elem = empty($old_elem[$key]) ? array() : $old_elem[$key];
+      $new_elem = empty($new_elem[$key]) ? array() : $new_elem[$key];
       
       // remember that either might not exists
-      if (!empty($old_parent['#title'])) {
-        $ancestor_title = $old_parent['#title'];
+      if (!empty($old_elem['#title'])) {
+        $ancestor_title = $old_elem['#title'];
       }
-      elseif (!empty($new_parent['#title'])) {
-        $ancestor_title = $new_parent['#title'];
+      elseif (!empty($new_elem['#title'])) {
+        $ancestor_title = $new_elem['#title'];
       }
     }
     
-    $diff_values = driven_inspect_diff_elems($old_parent, $new_parent, $meta);
+    // keep track for bundle joint
+    if ($bundled) {
+      if (!isset($bundled_equal[$property_id])) {
+        $bundled_equal[$property_id] = array();
+      }
+      
+      // drop last part, which is only the bundle's holder
+      $prefix = explode(':', $target);
+      array_pop($prefix);
+      $prefix = implode(':', $prefix);
+      
+      $sub_target = substr($property_path, strlen($prefix . ':'));
+      if (strpos($property_path, $prefix . ':') !== 0) driven_assertion_failed('wrong sub-target declaration "' . $property_path . '" bundled under "' . $prefix . '" (property_id: ' . $property_id . ')');
+    }
+    $diff_values = driven_inspect_diff_elems($old_elem, $new_elem, $meta);
     if (!$diff_values) {
-      continue; // nothing else to do
+      if (!$bundled) {
+        continue; // nothing else to do
+      }
+      else {
+        // IMPORTANT: every children has to have known_default_value
+        // (i.e. $element['#default_value'] or a child of #type=radio pointing to it)
+        // otherwise they will be ignored (e.g. format tips, body_field:teaser_js)
+        if (!driven_elem_has_default_value_key($old_elem)) {
+          continue; // nothing else to do (the same as non bundled case)
+        }
+        $old = $new = driven_elem_default_value($old_elem);
+        // flag them as equal for later cleanup
+        $bundled_equal[$property_id][$sub_target] = $sub_target;
+        // fall through as if they were different
+        // they will be cleaned up later if needed
+        $diff_values = array($old, $new);
+      }
     }
     
     list($old, $new) = $diff_values;
     $label = empty($prop['label']) ? $ancestor_title : $prop['label'];
+    
+    // @per-module-discrimination: support workflow
+    // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+    // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+    if ($bundled) {
+      $changes[$property_id]['old'][$sub_target] = $old;
+      $changes[$property_id]['new'][$sub_target] = $new;
+      // label will be the same every time,
+      // and it needs to be set at least once
+      $changes[$property_id]['label'] = $label;
+      continue; // nothing else to do
+    }
     
     // @per-module-discrimination: support content_multigroup
     if ($multigroup) {
@@ -187,8 +235,29 @@ function driven_inspect_diff_nodes($old_node, $new_node, $driven_props) {
         // fall through usual case bellow
       }
     }
+    
     $changes[$property_id] = compact('label', 'old', 'new');
   }
+  
+  // @per-module-discrimination: support workflow
+  // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+  // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+  //
+  // just right before returning $changes
+  // cleanup $bundled_equal which didn't get any diff
+  foreach ($bundled_equal as $property_id => $sub_targets) {
+    $diff_values = FALSE;
+    foreach ($changes[$property_id]['old'] as $sub_target => $old) {
+      if (!in_array($sub_target, $sub_targets)) {
+        $diff_values = TRUE;
+        break;
+      }
+    }
+    if (!$diff_values) {
+      unset($changes[$property_id]);
+    }
+  }
+  
   return $changes;
 }
 
@@ -227,14 +296,10 @@ function driven_inspect_diff_elems($old_elem, $new_elem, $meta) {
       }
     }
     
-    $equal_keys = array();
     foreach ($old_children_keys as $key) {
       $other_elem = empty($new_elem[$key]) ? $non_existent_elem : $new_elem[$key];
       $diff_values = driven_inspect_diff_elems($old_elem[$key], $other_elem, $meta);
       if (!$diff_values) {
-        // keep track for wrapper_joint
-        // since later isset might not be enough if $old_elem[$key]=NULL 
-        $equal_keys[] = $key;
         continue;
       }
       
@@ -259,9 +324,6 @@ function driven_inspect_diff_elems($old_elem, $new_elem, $meta) {
       // just recursing to preserve keys structure
       $diff_values = driven_inspect_diff_elems($non_existent_elem, $new_elem[$key], $meta);
       if (!$diff_values) {
-        // keep track for wrapper_joint
-        // since later isset might not be enough if $old_elem[$key]=NULL 
-        $equal_keys[] = $key;
         continue;
       }
       
@@ -276,21 +338,8 @@ function driven_inspect_diff_elems($old_elem, $new_elem, $meta) {
       $news[$key] = $new;
     }
     
-    if (empty($olds) && empty($news)) return FALSE;
-    // IMPORTANT: wrapper_joint is in depth (recursive)
-    if ($meta['wrapper_joint']) {
-      // property requested to include non changed children
-      // if at least one of them changed
-      // since all of them will be needed at diff_render time
-      // IMPORTANT: every children has to have known_default_value
-      // (i.e. $element['#default_value'] or a child of #type=radio)
-      // otherwise they will be ignored (e.g. format tips)
-      foreach ($equal_keys as $key) {
-        // if a potential wrapper is found it will be bypassed (e.g. format tips)
-        if (driven_elem_has_default_value_key($old_elem[$key])) { 
-          $news[$key] = $olds[$key] = driven_elem_default_value($old_elem[$key]);
-        }
-      }
+    if (empty($olds) && empty($news)) {
+      return FALSE;
     }
     return array($olds, $news);
   }

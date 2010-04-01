@@ -1,0 +1,14 @@
+; $Id$
+
+name = Driven workflow properties
+description = Driven properties for workflow's state/schedule/comment.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = workflow
+
+; @d7
+files[] = driven_workflow.module
+files[] = driven_workflow.diff.inc

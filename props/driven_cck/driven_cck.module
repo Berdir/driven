@@ -44,7 +44,7 @@ function driven_cck_driven_properties($node_type) {
         'group_type' => $group['group_type'],
       );
       // translate the same as CCK does
-      $group_title_prefix = t($group['label']) . ' » '; 
+      $group_title_prefix = t($group['label']) . ' » ';
     }
     else {
       $meta['group_name'] = NULL;

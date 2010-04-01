@@ -56,6 +56,9 @@ function driven_diff_theme() {
   $theme['driven_diff_term'] = array(
     'arguments' => array('variables' => array('value' => '')),
   );
+  $theme['driven_diff_workflow_schedule'] = array(
+    'arguments' => array('variables' => array('schedule' => '')),
+  );
   $theme['driven_diff_outgoing'] = array(
     'arguments' => array('variables' => array('content' => '', 'classes' => array())),
   );
@@ -158,6 +161,32 @@ function theme_driven_diff_username($variables) {
 function theme_driven_diff_term($variables) {
   $term = $variables['value'];
   return l($term->name, taxonomy_term_path($term));
+}
+
+function theme_driven_diff_workflow_schedule($variables) {
+  $schedule = $variables['schedule'];
+  if ($schedule['workflow_scheduled']) {
+    // see how $scheduled is built at workflow_transition (workflow-6.x-1.4)
+    // and how format_date handles timezone
+    // to know why this was the approach taken 
+    //
+    // take advantage of reverse alphabetical order of indexes: year/month/day
+    $date = $schedule['workflow_scheduled_date'];
+    // careful with single digits for month/day
+    // (why isn't workflow using a hyphen separator?)
+    $date = implode('-', $date);
+    $time = $schedule['workflow_scheduled_hour'];
+    // workflow substracts timezone before evaluating transitions
+    // which is added by format_date on display time
+    // and which timezone is time() delivering for workflow_cron?
+    $scheduled = $date . ' ' . $time;
+    $timestamp = strtotime($scheduled);
+    $datetime = format_date($timestamp);
+  }
+  else {
+    $datetime = 'Immediately';
+  }
+  return check_plain($datetime);
 }
 
 function theme_driven_diff_outgoing($variables) {

@@ -15,6 +15,18 @@ function driven_diff_values_non_array($element, $form_values) {
   return array($default, $value);
 }
 
+function driven_diff_values_keyed_array_in_depth($element, $form_values) {
+  $default = driven_elem_default_value($element);
+  // $value will be normized if needed (per case basis)
+  // to match #default_value format instead of $form_state['values']
+  $value = driven_elem_state_value($element, $form_values);
+  
+  if (driven_equal_keyed_array_in_depth($default, $value)) {
+    return FALSE;
+  }
+  return array($default, $value);
+}
+
 function driven_diff_output_non_array($outgoing, $incoming, $theme = '', $theme_varname = 'value') {
   $outgoing = driven_diff_output($theme, array($theme_varname => $outgoing));
   $incoming = driven_diff_output($theme, array($theme_varname => $incoming));

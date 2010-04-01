@@ -18,15 +18,26 @@ function driven_node_driven_properties($node_type) {
   
   // otherwise it won't find any ancestor with #title
   $label = node_get_types('type', $node_type)->body_label;
-  // body_field:body, body_field:format,
-  // body_field:teaser_include, body_field:teaser_js
-  $available_props['node:body_field'] = array(
-    'label' => $label,
-    // request to include non changed children
-    // if at least one of them changed
-    // since all of them will be needed at diff_render time
-    'meta' => array('wrapper_joint' => TRUE),
+  // body_field:{body,format,teaser_include,teaser_js}
+  $available_props['node:body_field:bundled'] = array(
+    'label' => $label, // by default it would have none (from the bundle's parent)
     'target_title' => t('Body'),
+    'meta' => array(
+      // request to include non changed children
+      // if at least one of them changed
+      // since all of them will be needed at diff_render time
+      'bundle' => array(
+        'body',
+        'format',
+        'teaser_include',
+        // note that teaser_js has #value but no #default_value
+        // since it is handled by node_teaser_js on #after_build
+        // and saved into $form['body']['#value'] which is already considered
+        // nevertheless, it need to be considered within the bundled property
+        // to have access to it, but comparison should be bypassed
+        'teaser_js'
+      )
+    ),
   );
   
   $theme = 'driven_diff_yes_no';

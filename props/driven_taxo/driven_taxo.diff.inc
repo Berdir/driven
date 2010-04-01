@@ -174,13 +174,14 @@ function driven_taxo_diff_render($old, $new, $meta) {
   // $node_type, $realm, $target, $provider,
   // $vid, $hierarchy, $multiple, $tags, [$voc_override]
   extract($meta);
-  $voc = driven_taxo_get_vocabulary($vid, $node_type);
   
+  $voc = driven_taxo_get_vocabulary($vid, $node_type);
   if (!$voc) {
     // can't say, but if we got here was because diff_values delivered something (?!)
     driven_assertion_failed('Can\'t figure diff_render of a gone property: ' . $realm . ':' . $target);
     return array('?', '?');
   }
+  
   // @per-module-discrimination: support taxonomy-related content_taxonomy widgets
   // (this also supports any custom delegation)
   if (isset($voc_override)) {
@@ -338,7 +339,11 @@ function driven_taxo_diff_render($old, $new, $meta) {
         }
         $outgoing[] = $rendered_term;
       }
-      // else property gone was already reported by driven_taxo_get_term
+      else {
+        // value gone was already reported by driven_taxo_get_term
+        // (avoid rendering empty sides if value is gone)
+        $outgoing[] = '?';
+      }
     }
     
     foreach ($new as $tid) {
@@ -352,7 +357,11 @@ function driven_taxo_diff_render($old, $new, $meta) {
         }
         $incoming[] = $rendered_term;
       }
-      // else property gone was already reported by driven_taxo_get_term
+      else {
+        // value gone was already reported by driven_taxo_get_term
+        // (avoid rendering empty sides if value is gone)
+        $incoming[] = '?';
+      }
     }
     
     if ($wrapped) {

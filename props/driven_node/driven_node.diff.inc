@@ -7,6 +7,15 @@
 function driven_node_diff_values($element, $form_values, $meta) {
   extract($meta); // $node_type, $realm, $target, $provider, [$theme]
   
+  // note that teaser_js has #value but no #default_value
+  // since it is handled by node_teaser_js on #after_build
+  // and saved into $form['body']['#value'] which is already considered
+  // nevertheless, it need to be considered within the bundled property
+  // to have access to it, but comparison should be bypassed
+  if (isset($element['#teaser']) && $element['#teaser'] == 'edit-body') {
+    return FALSE;
+  }
+  
   return driven_diff_values_non_array($element, $form_values);
 }
 
@@ -16,7 +25,7 @@ function driven_node_diff_values($element, $form_values, $meta) {
 function driven_node_diff_render($old, $new, $meta) {
   extract($meta); // $node_type, $realm, $target, $provider, [$theme]
   
-  if ($target === 'body_field') {
+  if ($target === 'body_field:bundled') {
     // @TODO: do something to display format changes, 
     // might be achieved having diff_render as a triplet
     // with 3rd item being a flag for

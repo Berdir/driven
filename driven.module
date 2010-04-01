@@ -286,7 +286,21 @@ function driven_build_properties_map($driven_props, $ned_form = NULL, $additions
     $target = $prop['target'];
     $meta = $prop['meta'];
     // the easiest case first
-    if ($realm == 'taxo') {
+    if (!empty($meta['bundle'])) {
+      // @per-module-discrimination: support workflow
+      // in passing by, normalize old body_field's wrapper_joint to the more generic case
+      // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+      $bundle = $meta['bundle'];
+      // drop last part, which is only the bundle's holder
+      $prefix = explode(':', $target);
+      array_pop($prefix);
+      $prefix = implode(':', $prefix);
+      // map each bundled sub-element beneath the target
+      foreach ($bundle as $sub_target) {
+        $property_map[$prefix . ':' . $sub_target] = $prop;
+      }
+    }
+    elseif ($realm == 'taxo') {
       $property_path = 'taxonomy:' . ($meta['tags'] ? 'tags:' : '') . $meta['vid'];
       $property_map[$property_path] = $prop;
     }
@@ -370,21 +384,21 @@ function driven_build_property_paths_tree($properties_map, $attach_leaf = FALSE)
   $tree = array();
   foreach ($properties_map as $property_path => $leaf) {
     $path_parts = explode(':', $property_path);
-    $parent = &$tree;
+    $branch = &$tree;
     foreach ($path_parts as $key) {
-      if (empty($parent[$key])) {
-        $parent[$key] = array();
+      if (empty($branch[$key])) {
+        $branch[$key] = array();
       }
-      $parent[$key] += array(
-        '#path' => empty($parent['#path']) ? $key : ($parent['#path'] . ':' . $key),
+      $branch[$key] += array(
+        '#path' => empty($branch['#path']) ? $key : ($branch['#path'] . ':' . $key),
       );
-      $parent = &$parent[$key];
+      $branch = &$branch[$key];
     }
     if ($attach_leaf) {
       // property_paths_tree operates over property paths
       // the rhs $leaf might be anything
       // (usually the property itself if the $properties_map comes from driven_build_properties_map)
-      $parent['#leaf'] = $leaf;
+      $branch['#leaf'] = $leaf;
     }
   }
   return $tree;

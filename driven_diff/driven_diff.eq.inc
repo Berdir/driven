@@ -28,6 +28,7 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
   $node_type = $ned_form['#node']->type;
   
   $changes = array();
+  $bundled_equal = array();
   // @per-module-discrimination: support content_multigroup
   // IMPORTANT: remember that CCK's multigroup will cause
   // the same property to be repeated under different paths
@@ -45,6 +46,11 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
     // $group_name/type, $field_name/type/module/multiple, $widget_type/module
     // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
     $multigroup = ($realm == 'cck' && $meta['group_name'] && $meta['group_type'] == 'multigroup');
+    // @per-module-discrimination: support workflow
+    // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+    // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+    $bundle = $meta['bundle'];
+    $bundled = !empty($bundle);
     
     $path_parts = explode(':', $property_path);
     $element = $ned_form;
@@ -64,12 +70,65 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
       }
     }
     
+    // keep track for bundle joint
+    if ($bundled) {
+      if (!isset($bundled_equal[$property_id])) {
+        $bundled_equal[$property_id] = array();
+      }
+      
+      // drop last part, which is only the bundle's holder
+      $prefix = explode(':', $target);
+      array_pop($prefix);
+      $prefix = implode(':', $prefix);
+      
+      $sub_target = substr($property_path, strlen($prefix . ':'));
+      if (strpos($property_path, $prefix . ':') !== 0) driven_assertion_failed('wrong sub-target declaration "' . $property_path . '" bundled under "' . $prefix . '" (property_id: ' . $property_id . ')');
+    }
     $diff_values = driven_diff_elem_values($element, $form_values, $meta);
     if (!$diff_values) {
-      continue; // nothing else to do
+      if (!$bundled) {
+        continue; // nothing else to do
+      }
+      else {
+        // property requested to include non changed children
+        // if at least one of them changed
+        // since all of them will be needed at diff_render time
+        //
+        // IMPORTANT: bundle joint is one level depth only
+        //
+        // the only strategy known for bundle joint
+        // would be the clasic #default_value vs driven_form_state_value
+        // but there is not need to keep track of normalized values
+        // since they were declared equal to #default_value
+        //
+        // IMPORTANT: every children has to have known_default_value
+        // (i.e. $element['#default_value'] or a child of #type=radio pointing to it)
+        // otherwise they will be ignored (e.g. format tips, body_field:teaser_js)
+        if (!driven_elem_has_default_value_key($element)) {
+          continue; // nothing else to do (the same as non bundled case)
+        }
+        $old = $new = driven_elem_default_value($element);
+        // flag them as equal for later cleanup
+        $bundled_equal[$property_id][$sub_target] = $sub_target;
+        // fall through as if they were different
+        // they will be cleaned up later if needed
+        $diff_values = array($old, $new);
+      }
     }
     list($old, $new) = $diff_values;
     $label = empty($prop['label']) ? $ancestor_title : $prop['label'];
+    
+    // @per-module-discrimination: support workflow
+    // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+    // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+    if ($bundled) {
+      $changes[$property_id]['old'][$sub_target] = $old;
+      $changes[$property_id]['new'][$sub_target] = $new;
+      // label will be the same every time,
+      // and it needs to be set at least once
+      $changes[$property_id]['label'] = $label;
+      continue; // nothing else to do
+    }
     
     // @per-module-discrimination: support content_multigroup
     if ($multigroup) {
@@ -86,6 +145,7 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
         // fall through usual case bellow
       }
     }
+    
     // properties might no longer exist suddenly
     // a backup render has to be made instantly and kept
     // but until this point we might be just validating
@@ -102,6 +162,26 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
     // since validator doesn't requires to preview the diff summary
     // that being optional makes sense to keep diff_render in submission stage
   }
+  
+  // @per-module-discrimination: support workflow
+  // in passing by, normalize old body_field's wrapper_joint to the more generic bundle joint
+  // (e.g. node:body_field:bundled & workflow:workflow:bundled_schedule)
+  //
+  // just right before returning $changes
+  // cleanup $bundled_equal which didn't get any diff
+  foreach ($bundled_equal as $property_id => $sub_targets) {
+    $diff_values = FALSE;
+    foreach ($changes[$property_id]['old'] as $sub_target => $old) {
+      if (!in_array($sub_target, $sub_targets)) {
+        $diff_values = TRUE;
+        break;
+      }
+    }
+    if (!$diff_values) {
+      unset($changes[$property_id]);
+    }
+  }
+  
   return $changes;
 }
 
@@ -131,14 +211,10 @@ function driven_diff_elem_values($element, $form_values, $meta) {
         return driven_diff_elem_values($element[$key], $form_values, $meta);
       }
     }
-      
-    $equal_keys = array();
+    
     foreach ($element_children as $key) {
       $diff_values = driven_diff_elem_values($element[$key], $form_values, $meta);
       if (!$diff_values) {
-        // keep track for wrapper_joint
-        // since later isset might not be enough if $olds[$key]=NULL 
-        $equal_keys[] = $key;
         continue;
       }
       
@@ -153,26 +229,8 @@ function driven_diff_elem_values($element, $form_values, $meta) {
       $news[$key] = $new;
     }
     
-    if (empty($olds) && empty($news)) return FALSE;
-    // IMPORTANT: wrapper_joint is in depth (recursive)
-    if ($meta['wrapper_joint']) {
-      // property requested to include non changed children
-      // if at least one of them changed
-      // since all of them will be needed at diff_render time
-      // IMPORTANT: every children has to have known_default_value
-      // (i.e. $element['#default_value'] or a child of #type=radio)
-      // otherwise they will be ignored (e.g. format tips)
-      foreach ($equal_keys as $key) {
-        // the only strategy known for wrapper_joint
-        // would be the clasic #default_value vs driven_form_state_value
-        // but there is not need to keep track of normalized values
-        // since they were declared equal to #default_value
-        //
-        // if a potential wrapper is found it will be bypassed (e.g. format tips)
-        if (driven_elem_has_default_value_key($element[$key])) { 
-          $news[$key] = $olds[$key] = driven_elem_default_value($element[$key]);
-        }
-      }
+    if (empty($olds) && empty($news)) {
+      return FALSE;
     }
     return array($olds, $news);
   }
@@ -327,8 +385,8 @@ function _driven_equal_non_array($default, &$value) {
 
 
 // helper function to pick up the default value
-// ONCE KNOWN: it exists or one of its children is #type=radio
-// i.e. $element['#default_value'] or from a child of #type=radio
+// ONCE KNOWN: it exists or one of its children is #type=radio pointing to it
+// i.e. $element['#default_value'] or from a child of #type=radio with #parents having the path of $element
 function driven_elem_default_value($element) {
   if (driven_elem_has_default_value_key($element)) {
     return $element['#default_value'];
@@ -341,14 +399,19 @@ function driven_elem_default_value($element) {
     if (driven_elem_has_default_value_key($element[$key])) {
       // found a non-wrapper => its type being radio would be a positive (while negative otherwise)
       if ($element[$key]['#type'] === 'radio') {
+        // ensure we're not picking up a wrong radio's value (brought by workflow's driven properties [#758086])
+        if (!driven_equal_array_values($element[$key]['#parents'], $element['#parents'])) driven_assertion_failed('improper form structure: $element[' . $key . '][\'#parents\'] differs from $element[\'#parents\'] for a radio child (child\'s #parents: ' . var_export($element[$key]['#parents'], TRUE) . ', element\'s #parents=' . var_export($element['#parents'], TRUE) . ')');
         // then either of its children will suffice to pick up the #default_value
         // and we have one at hand already
         return $element[$key]['#default_value'];
       }
       // found a children with default value but it isn't a radio
       // then stop looping through its children, it is already a negative
-      driven_assertion_failed('misusage of driven_elem_default_value: $element has no #default_value and one of its children is non-radio (child_key: ' . $key . ', #type=' . $element[$key]['#type'] . ')');
-      return FALSE;
+      //driven_assertion_failed('misusage of driven_elem_default_value: $element has no #default_value and one of its children is non-radio (child_key: ' . $key . ', #type=' . $element[$key]['#type'] . ')');
+      //return FALSE;
+      // (brought by workflow's driven properties [#758086])
+      // no, workflow module has a fieldset wrapping radios and elements of other types
+      // therefore, finding a non-radio wouldn't be a negative
     }
   }
   

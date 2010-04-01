@@ -2,6 +2,17 @@
 // $Id$
 
 /**
+ * Implements hook_enable().
+ */
+function driven_nep_enable() {
+  // weight above every other module
+  // since altering the node_form to restrict #access
+  // requires every other form_alter to be already executed
+  // (brought by workflow's driven properties [#758086]) 
+  db_query("UPDATE {system} SET weight = 1000 WHERE name = 'driven_nep' AND type = 'module'");
+}
+
+/**
  * Implements hook_node_type().
  */
 function driven_nep_node_type($op, $info) {

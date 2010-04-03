@@ -1,0 +1,19 @@
+; $Id$
+
+name = Driven CCK Producer/Consumer Policies
+description = Exposes an API to apply inbound/outbound policies to fields with multiplicity.
+
+package = Driven
+; @d6
+core = 6.x
+
+dependencies[] = driven
+dependencies[] = driven_cck
+; make cck dependency explicit (using their constants)
+dependencies[] = content
+; it will rely on equality for validators
+dependencies[] = driven_diff
+
+; @d7
+files[] = driven_cck_producer_consumer.module
+files[] = driven_cck_producer_consumer.inc

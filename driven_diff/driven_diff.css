@@ -9,7 +9,8 @@ table.driven_diff tr td, table.driven_diff tr th {
   padding: 0 .3em;
 }
 
-table.driven_diff tr td *, table.driven_diff tr th * {
+table.driven_diff tr td *, table.driven_diff tr th *,
+.messages .filefield-file, .messages .filefield-file .filefield-icon {
   display: inline;
   white-space: nowrap;
   float: none; /* e.g filefield-icon */

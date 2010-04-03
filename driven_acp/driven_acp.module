@@ -5,12 +5,22 @@
  * Callback for property behavior settings form.
  */
 function driven_acp_behavior_form($prop) {
+  // @TODO: unify multigroup's behaviors
+  // right now not having feedback from users requesting multigroup support
+  // (in addition, D7 version of multigroup haven't been planed yet [#695636-8], [#494100-58])
+  // therefore, this is postponed until an official release exists (either D6 or D7)
+  if (!empty($prop['meta']['group_name']) && $prop['meta']['group_type'] === 'multigroup') {
+    // temporary withdraw policies support for fields within a multigroup
+    // until a unified settings for multigroup be implemented
+    return FALSE;
+  }
+  
   // IMPORTANT: every behavior form needs a "none" option
   // to act as if the behavior wasn't enabled at all
   // which will be the default behavior when settings haven't been saved yet
   $form = array(
     '#type' => 'fieldset',
-    '#title' => t('Access Control Policies'),
+    '#title' => t('Access Control Policy'),
     '#collapsible' => TRUE,
   );
   $form['acp'] = array(
@@ -18,7 +28,7 @@ function driven_acp_behavior_form($prop) {
     '#options' => array(
       'none' => t('None'),
       'deny_for_roles' => t('Deny for selected roles'),
-      'deny_all_roles' => t('Deny for all roles expect selected ones'),
+      'deny_all_roles' => t('Deny for all roles except selected ones'),
       'grant_for_roles' => t('Grant for selected roles'),
       'grant_all_roles' => t('Grant for all roles except selected ones'),
     ),
@@ -58,6 +68,7 @@ function driven_acp_apply_to_properties(&$driven_props, $policies) {
     // we got all policies at once (which can't be mistaken with a realm:target)
     // lets pick up only ours
     // (this supports delivering all policies returned by driven_props_get_policies)
+    // in the worse case it will be an empty array
     $policies = $policies['driven_acp'];
   }
   
@@ -84,7 +95,7 @@ function driven_acp_apply_to_form(&$node_form, $driven_props, $policies) {
   // to have Access Control Policies already applied
   if (isset($policies)) {
     // otherwise apply our policies to the received copy of $driven_props
-    driven_acp_apply_to_properites($driven_props, $policies);
+    driven_acp_apply_to_properties($driven_props, $policies);
   }
   driven_access_control_to_form($node_form, $driven_props);
 }
@@ -94,7 +105,7 @@ function driven_acp_apply_to_form_values(&$node_values, $node_form, $driven_prop
   // to have Access Control Policies already applied
   if (isset($policies)) {
     // otherwise apply our policies to the received copy of $driven_props
-    driven_acp_apply_to_properites($driven_props, $policies);
+    driven_acp_apply_to_properties($driven_props, $policies);
   }
   driven_access_control_to_form_values($node_form, $driven_props);
 }

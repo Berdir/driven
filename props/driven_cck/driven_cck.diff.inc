@@ -6,7 +6,7 @@
  */
 function driven_cck_diff_values($element, $form_values, $meta) {
   // $node_type, $realm, $target, $provider,
-  // $group_name/type, $field_name/type/module/multiple, $widget_type/module
+  // $group_name/type, $field_name/type/module/multiple, $widget_type/module/handle_multiple_values
   // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
   extract($meta);
   
@@ -26,9 +26,21 @@ function driven_cck_diff_values($element, $form_values, $meta) {
   // @per-module-discrimination
   switch ($field['module']) {
     case 'filefield':
-      // remove from $value keys which are not present in $default
-      // (i.e. UPLOAD_IDENTIFIER, filefield_upload, filefield_remove, upload)
-      $value = driven_diff_limit_value_keys($default, $value);
+      // drop: UPLOAD_IDENTIFIER, APC_UPLOAD_PROGRESS, filefield_upload, filefield_remove, upload
+      // (see filefield_widget_process)
+      // none of those indexes are meant to get it
+      // since they are not #default_value format
+      $keys = array(
+        'UPLOAD_IDENTIFIER',
+        'APC_UPLOAD_PROGRESS',
+        'filefield_upload',
+        'filefield_remove',
+        'upload',
+      );
+      driven_diff_drop_keys($value, $keys);
+      // on preview $default needs cleanup as well,
+      // because it comes from $from_state['values'] (hackish node preview)
+      driven_diff_drop_keys($default, $keys);
       break;
       
     case 'date':
@@ -58,13 +70,26 @@ function driven_cck_diff_values($element, $form_values, $meta) {
       // since they were added in validation time,
       // therefore they are not #default_value format
       // thus, prepare them both for comparison
-      $keys = array('timezone', 'timezone_db', 'date_type');
-      foreach ($keys as $key) {
-        unset($default[$key], $value[$key]);
-      }
+      $keys = array(
+        'timezone',
+        'timezone_db',
+        'date_type',
+      );
+      driven_diff_drop_keys($default, $keys);
+      driven_diff_drop_keys($value, $keys);
       // remove from $value keys which are not present in $default
-      // (e.g. offset, offset2, and also value2 if no $field['todate'])
-      $value = driven_diff_limit_value_keys($default, $value);
+      // drop: offset, offset2, and also value2 if no $field['todate']
+      $keys = array(
+        'offset',
+        'offset2',
+      );
+      if (!empty($field['todate'])) {
+        $keys[] = 'value2';
+      }
+      driven_diff_drop_keys($value);
+      // on preview $default needs cleanup as well,
+      // because it comes from $from_state['values'] (hackish node preview)
+      driven_diff_drop_keys($default);
       break;
       
     // @per-module-discrimination: support taxonomy-related content_taxonomy widgets
@@ -133,7 +158,8 @@ function driven_cck_diff_values($element, $form_values, $meta) {
       // which compared to $default shouldn't be zero-padded
       // instead it should be normalized to NULL
       // (whether $default might be NULL or not)
-      if (empty($val)) {
+      // BUT having a zero value should be normalized to '0' with zero-pads
+      if (is_null($val) || $val === '') {
         $val = NULL;
         continue;
       }
@@ -151,6 +177,23 @@ function driven_cck_diff_values($element, $form_values, $meta) {
       //  $units = '0';
       //}
       
+      if (is_null($fraction)) {
+        $fraction = '';
+      }
+      $fraction = str_pad($fraction, $field['scale'], '0');
+      $val = $units . '.' . $fraction;
+    }
+    // on preview $default needs cleanup as well,
+    // because it comes from $from_state['values'] (hackish node preview)
+    // otherwise when previewing it will be double vs string
+    foreach ($default as $delta => $item) {
+      $val = &$default[$delta]['value'];
+      // having a zero value should be normalized to '0' with zero-pads
+      if (is_null($val) || $val === '') {
+        $val = NULL;
+        continue;
+      }
+      list($units, $fraction) = explode('.', $val);
       if (is_null($fraction)) {
         $fraction = '';
       }
@@ -198,13 +241,18 @@ function driven_cck_diff_values($element, $form_values, $meta) {
     // but it won't harm to cover it here as well (just in case)
     // '_remove' shows up when using multigroups
     // (if it would be certain whipping out every underscored key...)
-    unset($value['_weight'], $value['_error_element'], $value['_remove']);
+    $keys = array(
+      '_weight',
+      '_error_element',
+      '_remove',
+    );
+    driven_diff_drop_keys($value, $keys);
     
     // @TODO: every call to driven_assertion_failed will be removed after alpha/beta stage 
     if (isset($default['#_error_element'])) driven_assertion_failed('isset($default[\'#_error_element\']) path: ' . implode(':', $element['#array_parents']));
     // clearing $default shouldn't be needed, but it seems it does
     // when AHAH is involved the form might come back with _error_element
-    unset($default['_weight'], $default['_error_element'], $default['_remove']);
+    driven_diff_drop_keys($default, $keys);
   }
   
   // from this point $value is no longer passed by ref
@@ -258,7 +306,7 @@ function _driven_cck_content_taxonomy_diff_values($default, $value) {
  */
 function driven_cck_diff_render($old, $new, $meta) {
   // $node_type, $realm, $target, $provider,
-  // $group_name/type, $field_name/type/module/multiple, $widget_type/module
+  // $group_name/type, $field_name/type/module/multiple, $widget_type/module/handle_multiple_values
   // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
   extract($meta);
   
@@ -320,7 +368,7 @@ function driven_cck_diff_render($old, $new, $meta) {
     $function('sanitize', $node, $field, $new, FALSE, TRUE);
     $new_view = $function('view', $node, $field, $new, FALSE, TRUE);
   }
-  // the module might implement hook_field but not  necessarily the 'view' operation 
+  // the module might implement hook_field but not necessarily the 'view' operation 
   if (!isset($old_view)) {
     $old_view = content_field('view', $node, $field, $old, FALSE, TRUE);
     $new_view = content_field('view', $node, $field, $new, FALSE, TRUE);

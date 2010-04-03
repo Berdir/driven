@@ -34,24 +34,6 @@ function driven_workflow_diff_render($old, $new, $meta) {
     return array('?', '?');
   }
 
-/*  
-  if ($target === 'body_field') {
-    // @TODO: do something to display format changes, 
-    // might be achieved having diff_render as a triplet
-    // with 3rd item being a flag for
-    // potentials visually imperceptible changes
-    // which for instance would be true if only a format change happened
-    // indicating that it might be no visual difference
-    // or FALSE if everything is being rendered (which does NOT mean they can't render the same)
-    // @TODO: also consider teaser_include?
-    // @TODO: will need to trim the body_field somehow
-    // also support other text input for other modules wishing to delegate?
-    $outgoing = check_markup($old['body'], $old['format'], TRUE);
-    $incoming = check_markup($new['body'], $new['format'], TRUE);
-    return array($outgoing, $incoming);
-  }
-*/
-  
   // the parent to which the state's radios point
   // (which is an empty string passed from workflow_form_alter to workflow_node_form)
   if ($target == 'workflow:') {

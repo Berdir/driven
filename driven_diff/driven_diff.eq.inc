@@ -43,7 +43,7 @@ function driven_diff_form_values($ned_form, $form_values, $driven_props) {
     // test for group_name first, since it will be at least NULL, while group_type index might not exists
     // CCK's meta:
     // $node_type, $realm, $target, $provider,
-    // $group_name/type, $field_name/type/module/multiple, $widget_type/module
+    // $group_name/type, $field_name/type/module/multiple, $widget_type/module/handle_multiple_values
     // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
     $multigroup = ($realm == 'cck' && $meta['group_name'] && $meta['group_type'] == 'multigroup');
     // @per-module-discrimination: support workflow
@@ -447,21 +447,4 @@ function driven_elem_state_value($element, $form_values) {
   // having this simplicity wrapped in a function
   // will help avoiding typo bugs
   return driven_form_state_value($element['#parents'], $form_values);
-}
-
-// see form_set_value at form.inc
-function driven_form_state_value($parents, $form_values) {
-  $parent = array_shift($parents);
-  if (empty($parents)) {
-    $value = $form_values[$parent];
-  }
-  else {
-    if (isset($form_values[$parent])) {
-      $value = driven_form_state_value($parents, $form_values[$parent]);
-    }
-    else {
-      $value = NULL;
-    }
-  }
-  return $value;
 }

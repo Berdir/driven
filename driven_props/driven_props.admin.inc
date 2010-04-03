@@ -61,37 +61,9 @@ function driven_props_overview_form(&$form_state, $driver_mod, $node_type) {
     if (isset($unsupported_props[$property_id])) {
       $elem[$target]['enabled']['#disabled'] = TRUE;
       $elem[$target]['enabled']['#description'] = $unsupported_props[$property_id];
-      continue; // nothing else to do
     }
-    
-    // @TODO: this behavior thing needs to be reworked
-    // but I'll try to stick with its resulting data format
-    if (isset($type_settings['behaviors'])) {
-      foreach ($type_settings['behaviors'] as $behavior) {
-        $function = $behavior . '_behavior_form';
-        // some behavior might not be available (i.e. disabled)
-        // or have no settings at all (e.g. driven_full_access is a behavior after all)
-        if (function_exists($function)) {
-          $behavior_form = $function($prop);
-          if (!empty($behavior_form)) {
-            $hook = 'prop_behavior_alter';
-            if (module_hook($driver_mod, $hook)) {
-              $function = $driver_mod . '_' . $hook;
-              $function($behavior_form, $node_type, $prop, $behavior);
-            }
-            $elem[$target]['behaviors'][$behavior] = $behavior_form;
-          }
-        }
-      }
-      if (!empty($elem[$target]['behaviors'])) {
-        $elem[$target]['behaviors'] += array(
-          '#type' => 'fieldset',
-          '#title' => t('Property settings'),
-          '#description' => t('Property settings for:') . ' ' . $elem[$target]['enabled']['#title'],
-          '#collapsible' => TRUE,
-          '#collapsed' => TRUE,
-        );
-      }
+    else {
+      $elem[$target]['behaviors'] = _driven_props_retrieve_behaviors_form($driver_mod, $prop);
     }
   }
   $varname = $driver_mod . ':type:' . $node_type . ':driven_props';

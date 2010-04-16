@@ -73,6 +73,8 @@ function driven_cck_producer_consumer_behavior_form($prop) {
   // $group_name/type, $field_name/type/module/multiple, $widget_type/module/handle_multiple_values
   // $driven_diff (note that driven_diff was added in driven_diff_driven_properties_meta_extension)
   extract($meta);
+  // @TODO: not having add_more button doesn't limit these policies, right?
+  // it will have add_more button only if $field_multiple==1 
   if (!$field_multiple || ($widget_handle_multiple_values != CONTENT_HANDLE_CORE)) {
     // this behavior only address fields with multiplicity having a widget with multiple values handled by CCK's core
     return FALSE; // nothing to do
@@ -93,15 +95,6 @@ function driven_cck_producer_consumer_behavior_form($prop) {
     'consumer' => t('Outgoing for all roles except selected ones'),
     'consumer_producer' => t('Outgoing for selected roles, incoming otherwise'),
   );
-  // @TODO: not having add_more button doesn't limit these policies, right? 
-  //if ($field_multiple != 1) {
-  //  // the field has multiplicity, but no add_more button,
-  //  // since it is limited by a fixed number
-  //  $options = array(
-  //    'none' => $options['none'],
-  //    'consumer' => $options['consumer'],
-  //  );
-  //}
   $form['in_out'] = array(
     '#type' => 'radios',
     '#options' => $options,

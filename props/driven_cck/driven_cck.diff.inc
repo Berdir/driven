@@ -83,13 +83,13 @@ function driven_cck_diff_values($element, $form_values, $meta) {
         'offset',
         'offset2',
       );
-      if (!empty($field['todate'])) {
+      if (empty($field['todate'])) {
         $keys[] = 'value2';
       }
-      driven_diff_drop_keys($value);
+      driven_diff_drop_keys($value, $keys);
       // on preview $default needs cleanup as well,
       // because it comes from $from_state['values'] (hackish node preview)
-      driven_diff_drop_keys($default);
+      driven_diff_drop_keys($default, $keys);
       break;
       
     // @per-module-discrimination: support taxonomy-related content_taxonomy widgets

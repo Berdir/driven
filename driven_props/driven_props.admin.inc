@@ -165,9 +165,13 @@ function _driven_props_types_overview_alter(&$header, &$rows) {
   
   // @d6
   $types = node_get_types();
+  // types should be sorted by their machine names [#814726]
+  // since 3rd party's custom types would alter their order
+  $names = node_get_types('names');
   $row_index = -1;
   $header[3]['colspan']++;
-  foreach ($types as $key => $type) {
+  foreach ($names as $machine_name => $human_readable_name) {
+    $type = $types[$machine_name];
     // mimic CCK behavior,
     // they check node_hook in content types page,
     // but not in hook_menu
@@ -175,6 +179,7 @@ function _driven_props_types_overview_alter(&$header, &$rows) {
       $type_url_str = str_replace('_', '-', $type->type);
       $row = &$rows[++$row_index];
       // keep delete operation last
+      // (locked types have no delete operation, but they keep the respective cell)
       $delete = array_pop($row);
       $row[] = array('data' => l($link_text, 'admin/content/node-type/' . $type_url_str . '/' . $uri));
       $row[] = $delete;

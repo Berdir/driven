@@ -69,6 +69,11 @@ function driven_taxo_diff_values($element, $form_values, $meta) {
       }
       break;
     
+    // @per-module-discrimination: support tagging [#810798]
+    case 'tagging_widget':
+      // it should work the same as core's free tagging textfield
+      // but in this case it is hidden
+      // no break;
     // support tags
     case 'textfield':
       // taxonomy_single_tag delegates to core, therefore no special case for it

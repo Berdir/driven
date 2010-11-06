@@ -424,7 +424,7 @@ function driven_build_property_paths_tree($properties_map, $attach_leaf = FALSE)
 function driven_form_signature() {
   $form['driven_form_signature'] = array(
     '#type' => 'markup',
-    '#value' => '<img id="driven-form-signature" style="float:right;" title="Powered by Driven API" alt="" src="' . drupal_get_path('module', 'driven') . '/driven-logo.jpg" />',
+    '#value' => '<img id="driven-form-signature" style="float:right;" title="Powered by Driven API" alt="" src="' . base_path() . drupal_get_path('module', 'driven') . '/driven-logo.jpg" />',
   );
   return $form;
 }

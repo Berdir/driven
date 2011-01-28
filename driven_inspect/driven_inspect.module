@@ -4,7 +4,7 @@
 // helper function for modules intending to inspect tables of installed modules
 // but module_exists won't help for disabled modules
 function driven_inspect_module_installed($module) {
-  include_once './includes/install.inc';
+  include_once DRUPAL_ROOT . '/includes/install.inc';
   $schema_version = drupal_get_installed_schema_version($module);
   return (isset($schema_version) && $schema_version != SCHEMA_UNINSTALLED);
 }
@@ -19,10 +19,9 @@ function driven_inspect_diff_vids($old_vid, $new_vid, &$errors = array(), &$node
     . ' FROM {node_revisions} nrev'
     . ' LEFT JOIN {node} n'
     . ' ON nrev.nid = n.nid'
-    . ' WHERE nrev.vid = %d';
+    . ' WHERE nrev.vid = :vid';
   foreach (array($old_vid, $new_vid) as $vid) {
-    $result = db_query($query, $vid);
-    $row = db_fetch_array($result);
+    $row = db_query($query, array(':vid' => $vid))->fetchAssoc();
     if ($row) {
       $nids[$vid] = $row['nid'];
       $node_types[$vid] = $row['type'];
@@ -69,6 +68,7 @@ function driven_inspect_build_node_form($node) {
   $node_type = $node->type;
   // include required files to manually guide a node_form flow
   module_load_include('inc', 'node', 'node.pages');
+  // @todo: Update to field.module
   if (module_exists('content')) {
     module_load_include('inc', 'content', 'includes/content.node_form');
   }

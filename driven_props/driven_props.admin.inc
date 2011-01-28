@@ -163,25 +163,26 @@ function _driven_props_types_overview_alter(&$header, &$rows) {
     $link_text = t('driven properties');
   }
   
-  // @d6
-  $types = node_get_types();
   // types should be sorted by their machine names [#814726]
   // since 3rd party's custom types would alter their order
-  $names = node_get_types('names');
+  // @d7
+  // @todo Figure out the reason why this is so complicated in d6.
+  $names = node_type_get_names();
   $row_index = -1;
   $header[3]['colspan']++;
-  foreach ($names as $machine_name => $human_readable_name) {
-    $type = $types[$machine_name];
+  foreach ($names as $type => $human_readable_name) {
     // mimic CCK behavior,
     // they check node_hook in content types page,
     // but not in hook_menu
     if (node_hook($type, 'form')) {
-      $type_url_str = str_replace('_', '-', $type->type);
+      $type_url_str = str_replace('_', '-', $type);
       $row = &$rows[++$row_index];
       // keep delete operation last
       // (locked types have no delete operation, but they keep the respective cell)
       $delete = array_pop($row);
-      $row[] = array('data' => l($link_text, 'admin/content/node-type/' . $type_url_str . '/' . $uri));
+      // @d7
+      // @todo d6 version is not using consistent URL's for node type pages. bug?
+      $row[] = array('data' => l($link_text, 'admin/structure/types/' . $type_url_str . '/' . $uri));
       $row[] = $delete;
     }
   }
@@ -191,23 +192,23 @@ function _driven_props_types_overview_alter(&$header, &$rows) {
  * Menu callback: replacement for node_overview_types().
  */
 function driven_props_types_overview() {
-  // @d6
+  // @d7
   // mimics content_types_overview()
   // except for:
   // - colspan numbers
   // - not providing hook_content_types_overview_alter
-  $types = node_get_types();
-  $names = node_get_types('names');
+  // @todo: Figure out if this is still necessary in D7. Also, again crazy
+  // node_get_types() usage.
+  $names = node_type_get_names();
   $header = array(t('Name'), t('Type'), t('Description'), array('data' => t('Operations'), 'colspan' => '2'),);
   $rows = array();
 
-  foreach ($names as $key => $name) {
-    $type = $types[$key];
+  foreach ($names as $type => $name) {
     if (node_hook($type, 'form')) {
-      $type_url_str = str_replace('_', '-', $type->type);
+      $type_url_str = str_replace('_', '-', $type);
       $row = array(
         check_plain($name),
-        check_plain($type->type),
+        check_plain($type),
       );
       // Make the description smaller
       $row[] = array('data' => filter_xss_admin($type->description), 'class' => 'description');
@@ -238,5 +239,7 @@ function driven_props_types_overview() {
     $rows[] = array(array('data' => t('No content types available.'), 'colspan' => '5', 'class' => 'message'));
   }
 
-  return theme('table', $header, $rows) .theme('content_overview_links');
+  // @todo content_overview_links seems to be related to cck. Why use it if this
+  // page is only used when cck is *not* enabled?
+  return theme('table', array('table' => $header, 'rows' => $rows)) . theme('content_overview_links');
 }

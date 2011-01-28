@@ -144,19 +144,18 @@ function driven_props_menu() {
   $type_settings = driven_props_invoke_type_settings();
   if (!empty($type_settings)) {
     $weight = 10; // CCK uses 1 & 2, lets go last
-    // @d6
-    $types = node_get_types();
+    // @d7
+    $types = node_type_get_names();
     foreach ($type_settings as $driver_mod => $settings) {
-      foreach ($types as $key => $type) {
+      foreach ($types as $type => $type) {
         // mimic CCK behavior,
         // they check node_hook in content types page,
         // but not in hook_menu
         
         $uri = str_replace('_', '-', $driver_mod);
-        $node_type = $type->type;
-        $type_url_str = str_replace('_', '-', $node_type);
-        // @d6
-        $base_uri = 'admin/content/node-type/'. $type_url_str .'/driven-props';
+        $type_url_str = str_replace('_', '-', $type);
+        // @d7
+        $base_uri = 'admin/structure/types/'. $type_url_str .'/driven-props';
         // careful, base_uri without trailing slash to be used as default task
         $full_uri = $base_uri . '/' . $uri;
         $task_title = $settings['menu_title'];
@@ -191,9 +190,10 @@ function driven_props_menu() {
 function driven_props_menu_alter(&$menu) {
   // @d6
   // if CCK is installed we'll use its content_types_overview_alter instead
+  // @todo: Figure out what needs to be done for D7 here.
   if (!module_exists('content')) {
-    // @d6
-    $menu_types = &$menu['admin/content/types'];
+    // @d7
+    $menu_types = &$menu['admin/structure/types'];
     
     $menu_types['page callback'] = 'driven_props_types_overview';
     $menu_types['file'] = 'driven_props.admin.inc';
@@ -214,6 +214,8 @@ function driven_props_delete_settings($driver_mod, $node_type) {
 
 /**
  * Implements hook_content_types_overview_alter().
+ *
+ * @todo: Figure out what to do with this in D7.
  */
 function driven_props_content_types_overview_alter(&$header, &$rows) {
   module_load_include('inc', 'driven_props', 'driven_props.admin');

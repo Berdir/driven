@@ -4,13 +4,7 @@ name = Driven difference API
 description = Exposes an API to compare two states of a form (before vs after) with respect to driven property definitions. Mostly by comparing the form against submitted values.
 
 package = Driven
-; @d6
-core = 6.x
+; @d7
+core = 7.x
 
 dependencies[] = driven
-
-; @d7
-files[] = driven_diff.module
-files[] = driven_diff.eq.inc
-files[] = driven_diff.helper.inc
-files[] = driven_diff.theme.inc

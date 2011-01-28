@@ -4,9 +4,5 @@ name = Driven API
 description = Exposes a minimal common API.
 
 package = Driven
-; @d6
-core = 6.x
+core = 7.x
 
-; @d7
-files[] = driven.module
-files[] = driven.ac.inc

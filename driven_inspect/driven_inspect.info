@@ -4,11 +4,8 @@ name = Driven inspect API
 description = Exposes an API to compare two node revisions with respect to driven property definitions.
 
 package = Driven
-; @d6
-core = 6.x
+; @d7
+core = 7.x
 
 dependencies[] = driven_diff
 dependencies[] = driven_props
-
-; @d7
-files[] = driven_inspect.module

@@ -19,8 +19,8 @@ define('DRIVEN__VAR_ASSERTION_BACKTRACE_LOG', 'driven:assertion_backtrace_log');
  * Implements hook_menu().
  */
 function driven_menu() {
-  // @d6
-  $config_root = 'admin/settings/';
+  // @d7
+  $config_root = 'admin/config/content/';
   
   $menu[$config_root . 'driven'] = array(
     'title' => 'Driven API',
@@ -39,8 +39,6 @@ function driven_menu() {
   
   $global_settings = driven_invoke_global_settings();
   if (!empty($global_settings)) {
-    // @d6
-    $types = node_get_types();
     foreach ($global_settings as $driver_mod => $settings) {
       $uri = str_replace('_', '-', $driver_mod);
       $full_uri = $config_root . 'driven/' . $uri;
@@ -59,7 +57,7 @@ function driven_menu() {
   return $menu;
 }
 
-function driven_settings_form($form_state, $driver_mod) {
+function driven_settings_form($form, &$form_state, $driver_mod) {
   // the easiest first
   if ($driver_mod != 'driven') {
     $hook = 'driven_global_settings_form';
@@ -423,8 +421,7 @@ function driven_build_property_paths_tree($properties_map, $attach_leaf = FALSE)
 
 function driven_form_signature() {
   $form['driven_form_signature'] = array(
-    '#type' => 'markup',
-    '#value' => '<img id="driven-form-signature" style="float:right;" title="Powered by Driven API" alt="" src="' . base_path() . drupal_get_path('module', 'driven') . '/driven-logo.jpg" />',
+    '#markup' => '<img id="driven-form-signature" style="float:right;" title="Powered by Driven API" alt="" src="' . base_path() . drupal_get_path('module', 'driven') . '/driven-logo.jpg" />',
   );
   return $form;
 }

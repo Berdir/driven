@@ -135,6 +135,7 @@ function driven_diff_driven_properties_meta_extension($driven_props) {
     // flag only if unsupported, also provide details about why it isn't supported
     if ($supported) {
       // @per-module-discrimination: support advanced content_taxonomy widgets
+      // @todo: Figure out what to do with this in D7.
       if ($field_module === 'content_taxonomy') {
         $meta_ext['taxo_meta'] = _driven_diff_content_taxonomy_meta_extension($node_type, $field_name);
         // it will require both realms: cck & taxo
@@ -168,6 +169,7 @@ function driven_diff_driven_properties_meta_extension($driven_props) {
 function _driven_diff_content_taxonomy_meta_extension($node_type, $field_name) {
   // receiving $field_name, since it will need to load the full $field anyway
   // since $meta won't come with such details as the vocabulary id when it is content_taxonomy
+  // @todo: Port to fields API.
   $field = content_fields($field_name, $node_type);
   
   // can be handled by cck realm:

@@ -143,62 +143,36 @@ function driven_props_menu() {
 
   $type_settings = driven_props_invoke_type_settings();
   if (!empty($type_settings)) {
-    $weight = 10; // CCK uses 1 & 2, lets go last
-    // @d7
-    $types = node_type_get_names();
+    // Add this as last element.
+    $weight = 10;
     foreach ($type_settings as $driver_mod => $settings) {
-      foreach ($types as $type => $type) {
-        // mimic CCK behavior,
-        // they check node_hook in content types page,
-        // but not in hook_menu
-        
-        $uri = str_replace('_', '-', $driver_mod);
-        $type_url_str = str_replace('_', '-', $type);
-        // @d7
-        $base_uri = 'admin/structure/types/'. $type_url_str .'/driven-props';
-        // careful, base_uri without trailing slash to be used as default task
-        $full_uri = $base_uri . '/' . $uri;
-        $task_title = $settings['menu_title'];
-        $default_task = !isset($menu[$base_uri]);
-        
-        $menu[$default_task ? $base_uri : $full_uri] = array(
-          'title' => ($default_task && count($type_settings) > 1) ? 'Driven properties' : $task_title,
-          'page callback' => 'drupal_get_form',
-          'page arguments' => array('driven_props_overview_form', $driver_mod, $node_type),
-          'access arguments' => array('administer content types'),
-          'file' => 'driven_props.admin.inc',
-          'type' => MENU_LOCAL_TASK,
-          'weight' => $weight++,
+      // @d7
+      $base_uri = 'admin/structure/types/manage/%node_type/driven-props';
+      $uri = str_replace('_', '-', $driver_mod);
+      // careful, base_uri without trailing slash to be used as default task
+      $full_uri = $base_uri . '/' . $uri;
+      $task_title = $settings['menu_title'];
+      $default_task = !isset($menu[$base_uri]);
+
+      $menu[$default_task ? $base_uri : $full_uri] = array(
+        'title' => ($default_task && count($type_settings) > 1) ? 'Driven properties' : $task_title,
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('driven_props_overview_form', $driver_mod, 4),
+        'access arguments' => array('administer content types'),
+        'file' => 'driven_props.admin.inc',
+        'type' => MENU_LOCAL_TASK,
+        'weight' => $weight++,
+      );
+      if ($default_task) {
+        $menu[$full_uri] = array(
+          'title' => $task_title,
+          'type' => MENU_DEFAULT_LOCAL_TASK,
+          'weight' => -10,
         );
-        if ($default_task) {
-          $menu[$full_uri] = array(
-            'title' => $task_title,
-            'type' => MENU_DEFAULT_LOCAL_TASK,
-            'weight' => -10,
-          );
-        }
       }
     }
-  }
-  
+  }  
   return $menu;
-}
-
-/**
- * Implements hook_menu_alter(). 
- */
-function driven_props_menu_alter(&$menu) {
-  // @d6
-  // if CCK is installed we'll use its content_types_overview_alter instead
-  // @todo: Figure out what needs to be done for D7 here.
-  if (!module_exists('content')) {
-    // @d7
-    $menu_types = &$menu['admin/structure/types'];
-    
-    $menu_types['page callback'] = 'driven_props_types_overview';
-    $menu_types['file'] = 'driven_props.admin.inc';
-    $menu_types['file path'] = drupal_get_path('module', 'driven_props');
-  }
 }
 
 // helper function for driver mods
@@ -210,16 +184,6 @@ function driven_props_delete_settings($driver_mod, $node_type) {
   foreach ($varnames as $varname) {
     variable_del($varname);
   }
-}
-
-/**
- * Implements hook_content_types_overview_alter().
- *
- * @todo: Figure out what to do with this in D7.
- */
-function driven_props_content_types_overview_alter(&$header, &$rows) {
-  module_load_include('inc', 'driven_props', 'driven_props.admin');
-  _driven_props_types_overview_alter($header, $rows);
 }
 
 function _driven_props_retrieve_behaviors_form($driver_mod, $prop) {
@@ -324,4 +288,61 @@ function _driven_props_behavior_value($element, $behaviors_settings) {
   // having this simplicity wrapped in a function
   // will help avoiding typo bugs
   return driven_form_state_value($element['#parents'], $form_values);
+}
+
+/**
+ * Implements hook_page_alter().
+ */
+function driven_props_page_alter(&$page) {
+  if (isset($page['content']['system_main']['node_table'])) {
+    _driven_props_types_overview_alter($page['content']['system_main']['node_table']['#header'], $page['content']['system_main']['node_table']['#rows']);
+  }
+}
+
+
+/**
+ * Deferred function driven_props_types_overview_alter().
+ */
+function _driven_props_types_overview_alter(&$header, &$rows) {
+  $type_settings = driven_props_invoke_type_settings();
+  if (empty($type_settings)) {
+    return; // nothing to do
+  }
+
+  // point to the default local task,
+  $uri = 'driven-props';
+  if (count($type_settings) == 1) {
+    // there is only one driver_mod
+    $driver_mod = array_pop(array_keys($type_settings));
+    // don't point to the default local task,
+    // use the full task's path instead
+    //$uri = 'driven-props/' . str_replace('_', '-', $driver_mod);
+    $settings = array_pop($type_settings);
+    $link_text = $settings['task_title'];
+  }
+  else {
+    $link_text = t('driven properties');
+  }
+
+  // types should be sorted by their machine names [#814726]
+  // since 3rd party's custom types would alter their order
+  // @d7
+  $names = node_type_get_names();
+  $row_index = -1;
+  $header[1]['colspan']++;
+  foreach ($names as $type => $human_readable_name) {
+    // mimic CCK behavior,
+    // they check node_hook in content types page,
+    // but not in hook_menu
+    if (node_hook($type, 'form')) {
+      $type_url_str = str_replace('_', '-', $type);
+      $row = &$rows[++$row_index];
+      // keep delete operation last
+      // (locked types have no delete operation, but they keep the respective cell)
+      $delete = array_pop($row);
+      // @d7
+      $row[] = array('data' => l($link_text, 'admin/structure/types/manage/' . $type_url_str . '/' . $uri));
+      $row[] = $delete;
+    }
+  }
 }

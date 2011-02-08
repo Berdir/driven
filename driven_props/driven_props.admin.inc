@@ -1,9 +1,9 @@
 <?php
 // $Id$
 
-function driven_props_overview_form(&$form_state, $driver_mod, $node_type) {
+function driven_props_overview_form($form, &$form_state, $driver_mod, $node_type) {
   $form = array(
-    '#node_type' => $node_type,
+    '#node_type' => $node_type->type,
     '#driver_mod' => $driver_mod,
   );
   
@@ -27,8 +27,8 @@ function driven_props_overview_form(&$form_state, $driver_mod, $node_type) {
     '#default_value' => FALSE,
   );
   
-  $available_props = driven_properties_available($node_type);
-  $unsupported_props = array(); 
+  $available_props = driven_properties_available($node_type->type);
+  $unsupported_props = array();
   $hook = 'unsupported_driven_props';
   if (module_hook($driver_mod, $hook)) {
     $unsupported_props = module_invoke($driver_mod, $hook, $available_props);
@@ -37,8 +37,8 @@ function driven_props_overview_form(&$form_state, $driver_mod, $node_type) {
   if (empty($available_props)) {
     $form['driven_props']['no_props'] = array(
       '#type' => 'item',
-      '#value' => t('There are no driven properties exposed. You have to enable some property provider modules.'),
-      '#prefix' => '<div class="warning">',
+      '#markup' => t('There are no driven properties exposed. You have to enable some property provider modules.'),
+      '#prefix' => '<div class="warning messages">',
       '#suffix' => '</div>',
     );
   }
@@ -66,18 +66,18 @@ function driven_props_overview_form(&$form_state, $driver_mod, $node_type) {
       $elem[$target]['behaviors'] = _driven_props_retrieve_behaviors_form($driver_mod, $prop);
     }
   }
-  $varname = $driver_mod . ':type:' . $node_type . ':driven_props';
+  $varname = $driver_mod . ':type:' . $node_type->type . ':driven_props';
   $settings = variable_get($varname, array());
   _driven_props_load_settings($form['driven_props'], $settings);
   
   $hook = 'driven_props_type_settings_form';
   if (module_hook($driver_mod, $hook)) {
-    $form['driver_mod'] = module_invoke($driver_mod, $hook, $node_type);
+    $form['driver_mod'] = module_invoke($driver_mod, $hook, $node_type->type);
     $form['driver_mod']['#tree'] = TRUE;
+    $varname = $driver_mod . ':type:' . $node_type->type . ':settings';
+    $settings = variable_get($varname, array());
+    _driven_props_load_settings($form['driver_mod'], $settings);
   }
-  $varname = $driver_mod . ':type:' . $node_type . ':settings';
-  $settings = variable_get($varname, array());
-  _driven_props_load_settings($form['driver_mod'], $settings);
   
   $form += driven_form_signature();
   $form['buttons']['submit'] = array(
@@ -137,109 +137,4 @@ function driven_props_overview_form_submit($form, $form_state) {
       variable_del($varname);
     }
   }
-}
-
-/**
- * Deferred function driven_props_types_overview_alter().
- */
-function _driven_props_types_overview_alter(&$header, &$rows) {
-  $type_settings = driven_props_invoke_type_settings(); 
-  if (empty($type_settings)) {
-    return; // nothing to do
-  }
-  
-  // point to the default local task,
-  $uri = 'driven-props';
-  if (count($type_settings) == 1) {
-    // there is only one driver_mod
-    $driver_mod = array_pop(array_keys($type_settings));
-    // don't point to the default local task,
-    // use the full task's path instead
-    //$uri = 'driven-props/' . str_replace('_', '-', $driver_mod);
-    $settings = array_pop($type_settings);
-    $link_text = $settings['task_title'];
-  }
-  else {
-    $link_text = t('driven properties');
-  }
-  
-  // types should be sorted by their machine names [#814726]
-  // since 3rd party's custom types would alter their order
-  // @d7
-  // @todo Figure out the reason why this is so complicated in d6.
-  $names = node_type_get_names();
-  $row_index = -1;
-  $header[3]['colspan']++;
-  foreach ($names as $type => $human_readable_name) {
-    // mimic CCK behavior,
-    // they check node_hook in content types page,
-    // but not in hook_menu
-    if (node_hook($type, 'form')) {
-      $type_url_str = str_replace('_', '-', $type);
-      $row = &$rows[++$row_index];
-      // keep delete operation last
-      // (locked types have no delete operation, but they keep the respective cell)
-      $delete = array_pop($row);
-      // @d7
-      // @todo d6 version is not using consistent URL's for node type pages. bug?
-      $row[] = array('data' => l($link_text, 'admin/structure/types/' . $type_url_str . '/' . $uri));
-      $row[] = $delete;
-    }
-  }
-}
-
-/**
- * Menu callback: replacement for node_overview_types().
- */
-function driven_props_types_overview() {
-  // @d7
-  // mimics content_types_overview()
-  // except for:
-  // - colspan numbers
-  // - not providing hook_content_types_overview_alter
-  // @todo: Figure out if this is still necessary in D7. Also, again crazy
-  // node_get_types() usage.
-  $names = node_type_get_names();
-  $header = array(t('Name'), t('Type'), t('Description'), array('data' => t('Operations'), 'colspan' => '2'),);
-  $rows = array();
-
-  foreach ($names as $type => $name) {
-    if (node_hook($type, 'form')) {
-      $type_url_str = str_replace('_', '-', $type);
-      $row = array(
-        check_plain($name),
-        check_plain($type),
-      );
-      // Make the description smaller
-      $row[] = array('data' => filter_xss_admin($type->description), 'class' => 'description');
-      // Set the edit column.
-      $row[] = array('data' => l(t('edit'), 'admin/content/node-type/'. $type_url_str));
-      
-      // Set the delete column.
-      if ($type->custom) {
-        $row[] = array('data' => l(t('delete'), 'admin/content/node-type/'. $type_url_str .'/delete'));
-      }
-      else {
-        $row[] = array('data' => '');
-      }
-
-      $rows[] = $row;
-    }
-  }
-
-  // Allow external modules alter the table headers and rows.
-  //foreach (module_implements('content_types_overview_alter') as $module) {
-  //  $function = $module .'_content_types_overview_alter';
-  //  $function($header, $rows);
-  //}
-  _driven_props_types_overview_alter($header, $rows);
-
-  if (empty($rows)) {
-    // if there were no resulting rows then header shouldn't have more columns/colspans
-    $rows[] = array(array('data' => t('No content types available.'), 'colspan' => '5', 'class' => 'message'));
-  }
-
-  // @todo content_overview_links seems to be related to cck. Why use it if this
-  // page is only used when cck is *not* enabled?
-  return theme('table', array('table' => $header, 'rows' => $rows)) . theme('content_overview_links');
 }
